@@ -1,4 +1,4 @@
-import { DataTypes, Model } from 'sequelize';
+import { CreationOptional, DataTypes, InferAttributes, InferCreationAttributes, Model, Op } from 'sequelize';
 import { createSequelize6Instance } from '../setup/create-sequelize-instance';
 import { expect } from 'chai';
 import sinon from 'sinon';
@@ -21,10 +21,17 @@ export async function run() {
     },
   });
 
-  class Foo extends Model {}
+  class Foo extends Model<InferAttributes<Foo>, InferCreationAttributes<Foo>> {
+    declare name: string;
+    declare userId: CreationOptional<number>;
+  }
 
   Foo.init({
     name: DataTypes.TEXT,
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
   }, {
     sequelize,
     modelName: 'Foo',
@@ -38,4 +45,14 @@ export async function run() {
 
   console.log(await Foo.create({ name: 'TS foo' }));
   expect(await Foo.count()).to.equal(1);
+
+  const foo: Foo | null = await Foo.findOne({
+    where: {
+      userId: {
+        [Op.or]: [-999, null],
+      },
+    }
+  });
+  expect(foo).to.not.be.undefined;
+  expect(foo.name).to.equal('Without userId');
 }

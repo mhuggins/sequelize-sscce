@@ -2,6 +2,7 @@ import { DataTypes, Model } from '@sequelize/core';
 import { createSequelize7Instance } from '../setup/create-sequelize-instance';
 import { expect } from 'chai';
 import sinon from 'sinon';
+import { CreationOptional, Op, Optional } from 'sequelize';
 
 // if your issue is dialect specific, remove the dialects you don't need to test on.
 export const testingOnDialects = new Set(['mssql', 'sqlite', 'mysql', 'mariadb', 'postgres', 'postgres-native']);
@@ -21,10 +22,24 @@ export async function run() {
     },
   });
 
-  class Foo extends Model {}
+  type FooAttributes = {
+    name: string;
+    userId: number;
+  }
+
+  type FooCreationAttributes = Optional<FooAttributes, 'userId'>
+
+  class Foo extends Model<FooAttributes, FooCreationAttributes> {
+    declare name: string;
+    declare userId: CreationOptional<number>;
+  }
 
   Foo.init({
     name: DataTypes.TEXT,
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
   }, {
     sequelize,
     modelName: 'Foo',
@@ -36,6 +51,17 @@ export async function run() {
   await sequelize.sync({ force: true });
   expect(spy).to.have.been.called;
 
-  console.log(await Foo.create({ name: 'TS foo' }));
-  expect(await Foo.count()).to.equal(1);
+  console.log(await Foo.create({ name: 'With userId', userId: 1 }));
+  console.log(await Foo.create({ name: 'Without userId' }));
+  expect(await Foo.count()).to.equal(2);
+
+  const foo: Foo | null = await Foo.findOne({
+    where: {
+      userId: {
+        [Op.or]: [-999, null],
+      },
+    }
+  });
+  expect(foo).to.not.be.undefined;
+  expect(foo.name).to.equal('Without userId');
 }
